@@ -1,4 +1,5 @@
 #include <chrono>
+#include <functional>
 
 class Timer 
 {
@@ -40,7 +41,7 @@ private:
 };
 
 
-using TimeItFunc = int (*) (void);
+using TimeItFunc = std::function< int(void) >;
 float time_it(TimeItFunc func, int repeat = 1, const char* output_tag = nullptr) 
 {
 	Timer t;
@@ -56,4 +57,23 @@ float time_it(TimeItFunc func, int repeat = 1, const char* output_tag = nullptr)
 	}
 
 	return t.duration();
+}
+
+
+class TimeItBase
+{
+public:
+	virtual void setup() = 0;
+	virtual int process() = 0;
+	virtual void cleanup() = 0;
+};
+
+float time_it(TimeItBase* test, int repeat = 1, const char* output_tag = nullptr)
+{
+	test->setup();
+
+	auto func = [&test]() { return test->process(); };
+	auto duration = time_it(func, repeat, output_tag);
+	test->cleanup();
+	return duration;
 }

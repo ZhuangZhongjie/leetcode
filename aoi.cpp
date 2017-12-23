@@ -1,11 +1,12 @@
 #include <iostream>
 #include <array>
 #include <vector>
+#include <algorithm>
 #include "util.h"
 
 using namespace std;
 
-static const int CAPACITY = 128;
+static const int CAPACITY = 1280;
 
 enum class AoiState : int {
 	ST_OUT = 0,
@@ -31,7 +32,12 @@ class Space
 public:
 	Space(): cap(CAPACITY), num(0)
 	{
-		
+		std::fill(posx.begin(), posx.end(), 0.0f);
+		std::fill(posy.begin(), posy.end(), 0.0f);
+		std::fill(radius_sq.begin(), radius_sq.end(), 0.0f);
+		std::fill(dirty.begin(), dirty.end(), false);
+		std::fill(state.begin(), state.end(), int(AoiState::ST_OUT));
+		std::fill(event.begin(), event.end(), int(AoiEvent::EV_NONE));
 	}
 
 	void tick()
@@ -47,7 +53,7 @@ public:
 			for(int j = 0; j < num; ++j)
 			{
 
-				int mat_idx = i * num + j;
+				int mat_idx = i * cap + j;
 				int old_state = state[mat_idx];
 				int within = int(calcDistSq(i, j) <= radius_sq[i]);
 				int new_state = within;
@@ -55,6 +61,51 @@ public:
 				event[mat_idx] = EV_TABLE[old_state][new_state];
 			}
 		}
+	}
+
+	void tick2()
+	{
+
+		for(int i = 0; i < num; ++i)
+		{
+			if (!dirty[i])
+			{
+				continue;
+			}
+
+			for(int j = 0; j < num; ++j) 
+			{
+				int mat_idx = i * cap + j;
+				dist_sq[mat_idx] = calcDistSq(i, j);
+			}
+		}
+
+		for(int i = 0; i < num; ++i) 
+		{
+			if (!dirty[i])
+			{
+				continue;
+			}
+
+			dirty[i] = false;
+			for(int j = 0; j < num; ++j)
+			{
+
+				int mat_idx = i * cap + j;
+				int old_state = state[mat_idx];
+				int within = int(dist_sq[mat_idx] <= radius_sq[i]);
+				int new_state = within;
+				state[mat_idx] = new_state;
+				event[mat_idx] = EV_TABLE[old_state][new_state];
+			}
+		}
+	}	
+
+	int add(float x, float y)
+	{
+		int id = num++;
+		setPos(id, x, y);
+		return id;
 	}
 
 	void setPos(int i, float x, float y)
@@ -70,11 +121,16 @@ public:
 		dirty[i] = true;
 	}
 
-	inline float calcDistSq(int i, int j)
+	float calcDistSq(int i, int j)
 	{
 		float dx = posx[i] - posx[j];
 		float dy = posy[i] - posy[j];
 		return dx * dx + dy * dy;
+	}
+
+	int getNum()
+	{
+		return num;
 	}
 
 private:
@@ -84,6 +140,7 @@ private:
 	using FloatArray = std::array<float, CAPACITY>;
 	using BoolArray = std::array<bool, CAPACITY>;
 	using IntMatrix = std::array<int, CAPACITY * CAPACITY>;
+	using FloatMatrix = std::array<float, CAPACITY * CAPACITY>;
 
 	FloatArray posx; // pos.x
 	FloatArray posy; // pos.y
@@ -91,18 +148,21 @@ private:
 	BoolArray dirty; // dirty flag
 	IntMatrix state; // aoi states: 0=out, 1=in
 	IntMatrix event; // aoi events: 0=none, 1=enter, 2=leave, 3=change
+	FloatMatrix dist_sq;
 };
 
+
+int nums[1000000] = {0};
 
 int func0()
 {
 	int s = 0;
 	for(int i = 0; i < 1000000; ++i) 
 	{
-		s += i;
+		s += nums[i];
 	}
 
-	s -= 50000;
+	s -= nums[50000];
 	return s;
 }
 
@@ -116,7 +176,7 @@ int func1()
 			continue;
 		}
 
-		s += i;
+		s += nums[i];
 	}
 
 	return s;
@@ -152,11 +212,55 @@ int func3()
 	return s;
 }
 
+
+class Test1: public TimeItBase
+{
+public:
+	void setup() override 
+	{
+		for(int i = 0; i < CAPACITY; ++i)
+		{
+			space.add(0, 1);
+		}
+	};
+
+	int process() override 
+	{
+		space.tick();
+		return space.getNum();
+	}
+
+	void cleanup() override 
+	{
+
+	}
+
+protected:
+	Space space;
+};
+
+class Test2: public Test1
+{
+public:
+	int process() override 
+	{
+		space.tick2();
+		return space.getNum();
+	}
+};
+
 int main(int argc, char** argv)
 {
+
+	time_it(func0, 1, "Load");
 	time_it(func0, 1, "LoopAdd");
 	time_it(func1, 1, "LoopIfAdd");
+
 	time_it(func2, 1, "LoopSwitch");
 	time_it(func3, 1, "LoopJumpTable");
+
+	time_it(new Test1(), 1000, "SpackTick");
+	time_it(new Test2(), 1000, "SpackTick2");
+
 	return 0;
 }
