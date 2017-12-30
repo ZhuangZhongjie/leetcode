@@ -2,6 +2,8 @@
 #include <array>
 #include <vector>
 #include <algorithm>
+#include <cmath>
+#include <emmintrin.h>
 #include "util.h"
 
 using namespace std;
@@ -249,6 +251,57 @@ public:
 	}
 };
 
+
+// 5x Faster than sqrtf, less precision
+inline float sqrtFast(float x) 
+{
+	unsigned int i = *(unsigned int*) &x;
+	i  += 127 << 23;  // adjust bias
+	i >>= 1;          // approximation of square root
+	return *(float*) &i;
+}
+
+int func4()
+{
+	// testify sqrtFast
+	float s = 0.0f;
+	for(int i = 0; i < 100000; ++i)
+	{
+		s += sqrtFast((float)i);
+	}
+	return s;
+}
+
+int func5()
+{
+	// testify std::sqrt
+	float s = 0.0f;
+	for(int i = 0; i < 100000; ++i)
+	{
+		s += std::sqrt((float)i);
+	}
+	return s;
+}
+
+double inline __declspec (naked) __fastcall sqrt14(double n)
+{
+	_asm fld qword ptr [esp+4]
+	_asm fsqrt
+	_asm ret 8
+} 
+
+int func6()
+{
+	// testify fsqrt
+	double s = 0.0f;
+	for(int i = 0; i < 100000; ++i)
+	{
+		s += sqrt14((double)i);
+	}
+	return s;
+}
+
+
 int main(int argc, char** argv)
 {
 
@@ -261,6 +314,10 @@ int main(int argc, char** argv)
 
 	time_it(new Test1(), 1000, "SpackTick");
 	time_it(new Test2(), 1000, "SpackTick2");
+
+	time_it(func4, 10000, "SqrtFast");
+	time_it(func5, 10000, "StdSqrt");
+	time_it(func6, 10000, "fsqrt");
 
 	return 0;
 }
